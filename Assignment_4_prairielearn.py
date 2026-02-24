@@ -444,21 +444,3 @@ def explain_links(action_name, root_node):
     return explanations
 
 
-all_traces = get_traces(json_tree, list(beliefs))
-
-
-valid_traces = [t for t in all_traces if not check_norm_violation(t, norm, beliefs)]
-
-best_trace = None
-best_cost = float('inf')
-
-for trace in valid_traces:
-    cost = compute_weighted_cost(trace, json_tree, preferences)
-    if cost < best_cost:
-        best_cost = cost
-        best_trace = trace
-
-selected_trace = best_trace if best_trace else []
-
-root_node = build_tree_from_json(json_tree)
-output = explain_action(action_to_explain, root_node, selected_trace, beliefs, [norm], preferences)

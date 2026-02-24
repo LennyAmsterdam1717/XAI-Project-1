@@ -8,6 +8,8 @@ using Ollama LLM for natural language generation.
 
 import json
 import re
+import random
+from Assignment_4_prairielearn import build_tree_from_json, explain_action
 
 class ExplanationGenerator:
     def __init__(self, json_tree, beliefs, norm, preferences):
@@ -140,45 +142,65 @@ class ExplanationGenerator:
         if not valid_traces:
             return "I couldn't find a way to achieve the goal without violating the rules."
         
-        # Find best trace and alternative
+        # Find best trace and cost (same optimisation as in Assignment 4)
         trace_costs = [(t, self.compute_weighted_cost(t)) for t in valid_traces]
         trace_costs.sort(key=lambda x: x[1])
         best_trace, best_cost = trace_costs[0]
         
-        # Extract information for prompt
-        chosen_actions = [self.humanize(a) for a in self.get_actions_from_trace(best_trace)]
-        
-        alternative_actions = []
-        if len(trace_costs) > 1:
-            alt_trace, alt_cost = trace_costs[1]
-            alternative_actions = [self.humanize(a) for a in self.get_actions_from_trace(alt_trace)]
-        
-        # Get preferences
-        dims = self.preferences[0]
-        weights = self.preferences[1]
-        important_prefs = [dims[i] for i in range(len(dims)) if weights[i] > 0]
-        
-        # Get norm info
-        norm_info = ""
-        if self.norm:
-            norm_type = self.norm.get("type")
-            norm_actions = [self.humanize(a) for a in self.norm.get("actions", [])]
-            if norm_type in ("P", "F"):
-                norm_info = f"I must avoid: {', '.join(norm_actions)}"
-            elif norm_type == "O":
-                norm_info = f"I must do: {', '.join(norm_actions)}"
-        
-        # Create prompt for LLM
-        prompt = f"""You are an AI assistant explaining your decision to a non-technical user.
+        # === Use Assignment 4 algorithm to build a FORMAL explanation ===
+        # Build anytree representation of the plan tree
+        root_node = build_tree_from_json(self.json_tree)
 
-Your chosen actions: {', then '.join(chosen_actions)}
-Alternative option: {', then '.join(alternative_actions) if alternative_actions else 'none'}
-Your priorities: {', '.join(important_prefs) if important_prefs else 'none'}
-Rules: {norm_info if norm_info else 'none'}
+        # Choose the concrete action to explain: last ACT in the best trace
+        best_actions = self.get_actions_from_trace(best_trace)
+        action_to_explain = best_actions[-1] if best_actions else best_trace[-1]
 
-Write a brief, friendly explanation (2-3 sentences) of why you chose these actions.
-Use simple language, no technical jargon. Be conversational and helpful."""
+        # Norms are expected as a list in Assignment 4's explain_action
+        norms_list = [self.norm] if self.norm else []
 
+        formal_explanation = explain_action(
+            action_to_explain,
+            root_node,
+            best_trace,
+            list(self.beliefs),
+            norms_list,
+            self.preferences,
+        )
+
+        # Serialise the formal explanation structure
+        formal_explanation_text = json.dumps(formal_explanation, indent=2)
+
+        # Create prompt for LLM: translate formal explanation into very friendly first-person English
+        prompt = f"""You are helping me explain my own decision in a simple, first-person way.
+The text below is a formal description of how I chose what to do.
+The person reading the explanation does not code and has never seen this assignment before.
+
+You are given a FORMAL EXPLANATION of why I chose a particular sequence of actions.
+
+The formal explanation is represented as a list of factors with codes:
+- 'C': choice at an OR node (which branch was chosen and which preconditions held)
+- 'F': failed preconditions for an alternative
+- 'N': norms (obligations or prohibitions) that ruled out alternatives
+- 'V': value and cost-based comparison between alternatives
+- 'P': preconditions that had to hold for actions in the trace
+- 'D': goals (ancestor nodes) that this action helps to achieve
+- 'L': links between actions
+- 'U': the user's preferences over quality, price, and time
+
+Formal explanation (JSON-like list of factors):
+{formal_explanation_text}
+
+Task:
+- Write a SHORT explanation in plain, everyday English (about 2–3 sentences).
+- Use **first person**: always say "I decided..." or "I chose..." 
+- Sound positive, friendly, and enthusiastic, as if you are helping a colleague understand what happened.
+- Avoid technical terms (no words like 'trace', 'norm', 'cost function', or 'constraint').
+- Clearly say, in simple words, what I decided to do, what other options I did NOT take, and why (because of rules and my priorities).
+- End with one clear short concluding sentence that directly states why this choice was the best one for me in this situation.
+- Do NOT mention the single‑letter codes ('C', 'F', 'N', 'V', 'P', 'D', 'L', 'U') or the word 'factor' at all.
+
+Write your answer as if you are telling a short story to someone who knows nothing about programming or AI planning, but just wants to understand my decision."""
+        
         # Call Ollama
         try:
             print("Generating explanation with Ollama (this may take a few seconds)...")
@@ -195,47 +217,75 @@ def generate_explanation(json_tree, beliefs, norm, preferences):
     return generator.generate_with_ollama()
 
 if __name__ == "__main__":
-    # Test with coffee scenario
-    json_tree = {
-        "name": "getCoffee",
-        "type": "OR",
-        "children": [
-            {"name": "getKitchenCoffee", "type": "SEQ", "pre": ["staffCardAvailable"],
-             "children": [
-                 {"name": "gotoKitchen", "type": "ACT", "sequence": 1, "post": ["atKitchen"], "costs": [0, 0, 2]},
-                 {"name": "getCoffeeKitchen", "type": "ACT", "sequence": 2, "pre": ["atKitchen"], "post": ["haveCoffee"], "costs": [5, 0, 1]}
-             ]},
-            {"name": "getShopCoffee", "type": "SEQ", "pre": ["haveMoney"],
-             "children": [
-                 {"name": "gotoShop", "type": "ACT", "sequence": 1, "post": ["atShop"], "costs": [0, 0, 5]},
-                 {"name": "payShop", "type": "ACT", "sequence": 2, "pre": ["haveMoney"], "post": ["paidShop"], "costs": [0, 3, 1]},
-                 {"name": "getCoffeeShop", "type": "ACT", "sequence": 3, "pre": ["atShop", "paidShop"], "post": ["haveCoffee"], "costs": [0, 0, 3]}
-             ]}
-        ]
-    }
-    
-    print("="*70)
-    print("OLLAMA-BASED NATURAL LANGUAGE EXPLANATION GENERATOR")
-    print("="*70)
-    
-    # Scenario 1
-    print("\nSCENARIO 1: Prohibition of paying at shop")
-    print("-"*70)
-    beliefs = ["staffCardAvailable", "haveMoney"]
-    norm = {"type": "P", "actions": ["payShop"]}
-    preferences = [["quality", "price", "time"], [1, 2, 0]]
-    
-    explanation = generate_explanation(json_tree, beliefs, norm, preferences)
-    print(f"\nExplanation:\n{explanation}\n")
-    
-    # Scenario 2
-    print("="*70)
-    print("SCENARIO 2: No norms, prioritize time")
-    print("-"*70)
-    beliefs = ["staffCardAvailable", "haveMoney"]
-    norm = None
-    preferences = [["quality", "price", "time"], [0, 0, 1]]
-    
-    explanation = generate_explanation(json_tree, beliefs, norm, preferences)
-    print(f"\nExplanation:\n{explanation}\n")
-    print("="*70)
+    # Load coffee planning problem from JSON file
+    with open("coffee.json", "r") as f:
+        json_tree = json.load(f)
+
+    # Define possible belief atoms present in the coffee domain
+    possible_beliefs = [
+        "staffCardAvailable",
+        "ownCard",
+        "colleagueAvailable",
+        "AnnInOffice",
+        "haveMoney",
+    ]
+
+    # Candidate actions from the coffee domain for norms
+    candidate_actions = [
+        "payShop",
+        "getOwnCard",
+        "getOthersCard",
+        "getCoffeeKitchen",
+        "getCoffeeAnnOffice",
+        "getCoffeeShop",
+    ]
+
+    # Re-sample random scenarios until we find one that has at least
+    # one plan that achieves the goal *without* violating the norm.
+    max_attempts = 50
+    valid_scenario = None
+
+    for _ in range(max_attempts):
+        # Randomly sample initial beliefs by independently including each atom
+        beliefs_candidate = [b for b in possible_beliefs if random.choice([True, False])]
+        if not beliefs_candidate:
+            beliefs_candidate = [random.choice(possible_beliefs)]
+
+        # Randomly choose whether to have a norm and of what type
+        norm_types = [None, "P", "O"]  # prohibition or obligation or no norm
+        chosen_norm_type = random.choice(norm_types)
+        norm_candidate = None
+        if chosen_norm_type:
+            norm_actions = random.sample(candidate_actions, k=1)
+            norm_candidate = {"type": chosen_norm_type, "actions": norm_actions}
+
+        # Randomly generate user preferences over [quality, price, time]
+        value_names = ["quality", "price", "time"]
+        raw_weights = [random.randint(0, 3) for _ in value_names]
+        preferences_candidate = [value_names, raw_weights]
+
+        # Use the ExplanationGenerator's own logic to check feasibility
+        generator = ExplanationGenerator(json_tree, beliefs_candidate, norm_candidate, preferences_candidate)
+        all_traces = generator.get_traces(json_tree, list(beliefs_candidate))
+        valid_traces = [t for t in all_traces if not generator.check_norm_violation(t)]
+
+        if valid_traces:
+            valid_scenario = (beliefs_candidate, norm_candidate, preferences_candidate)
+            break
+
+    if valid_scenario is None:
+        print("Could not generate a scenario that satisfies the rules within the attempt limit.")
+    else:
+        beliefs, norm, preferences = valid_scenario
+
+        print("=" * 70)
+        print("OLLAMA-BASED NATURAL LANGUAGE EXPLANATION GENERATOR")
+        print("=" * 70)
+        print("\nRANDOMLY GENERATED SCENARIO (RULE-COMPLIANT)")
+        print("-" * 70)
+        print(f"Beliefs: {beliefs}")
+        print(f"Norm: {norm}")
+        print(f"Preferences (values, weights): {preferences}")
+
+        explanation = generate_explanation(json_tree, beliefs, norm, preferences)
+        print(f"\nNatural-language explanation:\n{explanation}\n")

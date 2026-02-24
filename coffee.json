@@ -1,0 +1,94 @@
+{
+  "name": "getCoffee",
+  "type": "OR",
+  "children": [
+    {"name": "getKitchenCoffee",
+      "type": "SEQ",
+      "pre": ["staffCardAvailable"],
+      "children": [
+          {"name": "getStaffCard",
+            "sequence": 1,
+            "type": "OR",
+            "children": [
+                {"name":  "getOwnCard",
+                  "type": "ACT",
+                  "pre": ["ownCard"],
+                  "post": ["haveCard"],
+                  "costs": [0.0, 0.0, 0.0]
+                },
+                {"name": "getOthersCard",
+                  "type": "ACT",
+                  "pre": ["colleagueAvailable"],
+                  "post": ["haveCard"],
+                  "costs": [0.0, 0.0, 2.0]
+                }
+            ]
+          },
+          {"name": "gotoKitchen",
+            "type": "ACT",
+            "sequence": 2,
+            "post": ["atKitchen"],
+            "costs": [0.0, 0.0, 2.0]
+          },
+          {"name": "getCoffeeKitchen",
+            "type": "ACT",
+            "sequence": 3,
+            "pre": ["haveCard", "atKitchen"],
+            "post": ["haveCoffee"],
+            "costs": [5.0, 0.0, 1.0]
+          }
+      ]
+    },
+    {"name": "getAnnOfficeCoffee",
+      "type": "SEQ",
+      "pre": ["AnnInOffice"],
+      "children": [
+        {"name": "gotoAnnOffice",
+          "type": "ACT",
+          "sequence": 1,
+            "pre": ["AnnInOffice"],
+            "post": ["atAnnOffice"],
+            "costs": [0.0, 0.0, 2.0]
+        },
+        {"name": "getPod",
+          "type": "ACT",
+          "sequence": 2,
+            "post": ["havePod"],
+            "costs": [0.0, 0.0, 1.0]
+        },
+        {"name": "getCoffeeAnnOffice",
+          "type": "ACT",
+          "sequence": 3,
+            "pre": ["havePod", "atAnnOffice"],
+            "post": ["haveCoffee"],
+            "costs": [2.0, 0.0, 3.0]
+          }
+      ]
+    },
+    {"name": "getShopCoffee",
+      "type": "SEQ",
+      "pre": ["haveMoney"],
+      "children": [
+        {"name": "gotoShop",
+          "type": "ACT",
+          "sequence": 1,
+          "post": ["atShop"],
+          "costs": [0.0, 0.0, 5.0]
+        },
+        {"name": "payShop",
+          "type": "ACT",
+          "sequence": 2,
+          "pre": ["haveMoney"],
+          "costs": [0.0, 3.0, 1.0]
+        },
+        {"name": "getCoffeeShop",
+          "type": "ACT",
+          "sequence": 3,
+        "pre": ["atShop"],
+        "post": ["haveCoffee"],
+          "costs": [0.0, 0.0, 3.0]
+        }
+      ]
+    }
+  ]
+}
