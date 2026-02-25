@@ -1,0 +1,101 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+
+\title{XAI part 1}
+\author{s.vdnhoven_1 }
+\date{February 2026}
+
+\begin{document}
+
+
+\section{Input 1}
+
+You are the end-user of an AI agent. Consider the following situation. You instruct the
+agent to achieve the goal to have coffee, and that you prefer quality over price and price over time. The agent knows that
+it is prohibited to pay at the shop and that he can use his own staff card, a colleague is available, you have money and Ann is in the office. To achieve the goal, the agent does the following actions: [executed
+actions]. When you ask the agent to explain you why it did pay at the shop, the agent
+gives you the following explanation:
+[explanation in natural language].
+
+\newpage
+
+\section{Input 2}
+
+You are the end-user of an AI agent. Consider the following situation. You instruct the
+agent to achieve the goal to have coffee, and that you prefer quality over price and price over time. The agent knows that
+there are no norms restricting its actions and that a staffcard and its own card are available. To achieve the goal, the agent does the following actions: [executed
+actions]. When you ask the agent to explain you why it did get coffee from the kitchen, the agent
+gives you the following explanation:
+[explanation in natural language].
+
+\newpage
+
+\section{Input 3}
+
+You are the end-user of an AI agent. Consider the following situation. You instruct the
+agent to achieve the goal [goal], and that you prefer [preferences]. The agent knows that
+[norm] and [beliefs]. To achieve the goal, the agent does the following actions: [executed
+actions]. When you ask the agent to explain you why it did [action to explain], the agent
+gives you the following explanation:
+[explanation in natural language].
+
+\newpage
+
+\section{Input 4}
+
+You are the end-user of an AI agent. Consider the following situation. You instruct the
+agent to achieve the goal [goal], and that you prefer [preferences]. The agent knows that
+[norm] and [beliefs]. To achieve the goal, the agent does the following actions: [executed
+actions]. When you ask the agent to explain you why it did [action to explain], the agent
+gives you the following explanation:
+[explanation in natural language].
+
+\newpage
+
+\section{Input 5}
+
+You are the end-user of an AI agent. Consider the following situation. You instruct the
+agent to achieve the goal [goal], and that you prefer [preferences]. The agent knows that
+[norm] and [beliefs]. To achieve the goal, the agent does the following actions: [executed
+actions]. When you ask the agent to explain you why it did [action to explain], the agent
+gives you the following explanation:
+[explanation in natural language].
+
+\newpage
+
+============================================
+Input: input1.py
+Action: payShop
+Selected trace: ['getCoffee', 'getKitchenCoffee', 'getStaffCard', 'getOwnCard', 'gotoKitchen', 'getCoffeeKitchen']
+Formal output: []
+Natural language: This action was not part of the selected plan.
+
+============================================
+Input: input2.py
+Action: getCoffeeKitchen
+Selected trace: ['getCoffee', 'getKitchenCoffee', 'getStaffCard', 'getOwnCard', 'gotoKitchen', 'getCoffeeKitchen']
+Formal output: [['C', 'getKitchenCoffee', ['staffCardAvailable']], ['F', 'getAnnOfficeCoffee', ['AnnInOffice']], ['F', 'getShopCoffee', ['haveMoney']], ['C', 'getOwnCard', ['ownCard']], ['F', 'getOthersCard', ['colleagueAvailable']], ['P', 'getOwnCard', ['ownCard']], ['P', 'getCoffeeKitchen', ['haveCard', 'atKitchen']], ['D', 'getKitchenCoffee'], ['D', 'getCoffee'], ['U', [['quality', 'price', 'time'], [0, 1, 2]]]]
+Natural language: I chose getting coffee from the kitchen machine to get my coffee. I did not choose getting coffee from Ann's office because it was impossible due to the missing condition that Ann is in her office. My preference order for choosing between alternatives is quality, price, and time, which guided my choice. 
+
+============================================
+Input: input3.py
+Action: getCoffeeShop
+Selected trace: ['getCoffee', 'getShopCoffee', 'gotoShop', 'payShop', 'getCoffeeShop']
+Formal output: [['C', 'getShopCoffee', ['haveMoney']], ['F', 'getKitchenCoffee', ['staffCardAvailable']], ['V', 'getShopCoffee', [0, 3, 9], '>', 'getAnnOfficeCoffee', [2, 0, 6]], ['P', 'payShop', ['haveMoney']], ['P', 'getCoffeeShop', ['atShop', 'paidShop']], ['D', 'getShopCoffee'], ['D', 'getCoffee'], ['U', [['quality', 'price', 'time'], [0, 1, 2]]]]
+Natural language: I chose to get the coffee from the shop, which supports my goal of getting coffee. I did not choose to get the coffee from the kitchen because a staff card was not available, making it impossible. My preferences are quality, price, and time, with this order guiding my choice.
+
+============================================
+Input: input4.py
+Action: payShop
+Selected trace: ['getCoffee', 'getShopCoffee', 'gotoShop', 'payShop', 'getCoffeeShop']
+Formal output: [['C', 'getShopCoffee', ['haveMoney']], ['V', 'getShopCoffee', [0, 3, 9], '>', 'getKitchenCoffee', [5, 0, 3]], ['N', 'getAnnOfficeCoffee', 'P(gotoAnnOffice)'], ['P', 'payShop', ['haveMoney']], ['L', 'payShop', '->', 'getCoffeeShop'], ['D', 'getShopCoffee'], ['D', 'getCoffee'], ['U', [['quality', 'price', 'time'], [0, 1, 2]]]]
+Natural language: I chose paying at the shop, which helped me get my coffee. I did not choose getting coffee from Ann's office because it is prohibited to go there. My preferences are: quality is most important, then price, and finally time - this preference order guided my choice.
+
+============================================
+Input: input5.py
+Action: gotoKitchen
+Selected trace: ['getCoffee', 'getKitchenCoffee', 'getStaffCard', 'getOwnCard', 'gotoKitchen', 'getCoffeeKitchen']
+Formal output: [['C', 'getKitchenCoffee', ['staffCardAvailable']], ['F', 'getAnnOfficeCoffee', ['AnnInOffice']], ['N', 'getShopCoffee', 'P(payShop)'], ['C', 'getOwnCard', ['ownCard']], ['V', 'getOwnCard', [0.0, 0.0, 0.0], '>', 'getOthersCard', [0.0, 0.0, 2.0]], ['P', 'getOwnCard', ['ownCard']], ['L', 'gotoKitchen', '->', 'getCoffeeKitchen'], ['D', 'getKitchenCoffee'], ['D', 'getCoffee'], ['U', [['quality', 'price', 'time'], [1, 2, 0]]]]
+Natural language: I chose to go to the kitchen and get coffee from there because it supports my goal of getting coffee. I did not choose to get coffee from the shop because it is prohibited to pay there. My preference order is price, time, quality, and this order guided my choice.
+
+\end{document}
