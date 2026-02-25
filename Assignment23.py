@@ -91,7 +91,7 @@ def check_norm_violation(trace, norm, beliefs):
                 return True  # Missing obligated action = violation
         return False
 
-    if norm_type in ("F", "prohibition"):
+    if norm_type in ("F", "P", "prohibition"):
         # Forbidden: NONE of the listed actions may appear in the trace
         if condition:
             condition_met = all(c in trace_set for c in condition)
@@ -115,19 +115,23 @@ def get_act_costs(tree, trace_names):
         costs.update(get_act_costs(child, trace_names))
     return costs
 
-
-def compute_weighted_cost(trace, json_tree, preferences):
-    """Compute total weighted cost of a trace based on user preferences."""
-    dims = preferences[0]      # ['quality', 'price', 'time']
-    weights = preferences[1]   # [1, 2, 0]
-
+def compute_total_cost_vector(trace, json_tree):
     act_costs = get_act_costs(json_tree, set(trace))
-
-    total = 0
-    for dim_idx in range(len(dims)):
-        dim_sum = sum(c[dim_idx] for c in act_costs.values())
-        total += dim_sum * weights[dim_idx]
+    total = [0, 0, 0]
+    for c in act_costs.values():
+        total[0] += c[0]
+        total[1] += c[1]
+        total[2] += c[2]
     return total
+
+def is_trace_better_lexicographic(cost_a, cost_b, preference_order):
+    for idx in preference_order:
+        if cost_a[idx] < cost_b[idx]:
+            return True
+        if cost_a[idx] > cost_b[idx]:
+            return False
+    return False 
+
 
 # Get all feasible traces (precondition-filtered)
 all_traces = get_traces(json_tree, list(beliefs))
@@ -137,12 +141,13 @@ valid_traces = [t for t in all_traces if not check_norm_violation(t, norm, belie
 
 # Pick the trace with the lowest weighted cost
 best_trace = None
-best_cost = float('inf')
+best_cost_vec = None
+pref_order = preferences[1]
 
 for trace in valid_traces:
-    cost = compute_weighted_cost(trace, json_tree, preferences)
-    if cost < best_cost:
-        best_cost = cost
+    cost_vec = compute_total_cost_vector(trace, json_tree)
+    if best_trace is None or is_trace_better_lexicographic(cost_vec, best_cost_vec, pref_order):
         best_trace = trace
+        best_cost_vec = cost_vec
 
 output = best_trace if best_trace else []
