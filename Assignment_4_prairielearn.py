@@ -138,19 +138,22 @@ def get_act_costs(tree, trace_names):
         costs.update(get_act_costs(child, trace_names))
     return costs
 
-
-def compute_weighted_cost(trace, json_tree, preferences):
-    """Compute total weighted cost of a trace based on user preferences."""
-    dims = preferences[0]      # ['quality', 'price', 'time']
-    weights = preferences[1]   # [1, 2, 0]
-
+def compute_total_cost_vector(trace, json_tree):
     act_costs = get_act_costs(json_tree, set(trace))
-
-    total = 0
-    for dim_idx in range(len(dims)):
-        dim_sum = sum(c[dim_idx] for c in act_costs.values())
-        total += dim_sum * weights[dim_idx]
+    total = [0, 0, 0]
+    for c in act_costs.values():
+        total[0] += c[0]
+        total[1] += c[1]
+        total[2] += c[2]
     return total
+
+def is_trace_better_lexicographic(cost_a, cost_b, preference_order):
+    for idx in preference_order:
+        if cost_a[idx] < cost_b[idx]:
+            return True
+        if cost_a[idx] > cost_b[idx]:
+            return False
+    return False  
 
 
 # Assignment 4 - Explain Action
@@ -210,10 +213,6 @@ def compare_costs_by_preference(costs1, costs2, user_preferences):
     """
     Compare two cost vectors according to lexicographic preference ordering.
     
-    Returns:
-    - 'less': costs1 is preferred (lower cost)
-    - 'greater': costs2 is preferred (lower cost)  
-    - 'equal': costs are identical
     """
     if not user_preferences or len(user_preferences) < 2:
         return 'equal'
@@ -323,32 +322,30 @@ def check_norm_violation_in_subtree(node, norms, trace):
     Check if a node (alternative) violates a norm.
     Returns the norm string if violation found, None otherwise.
     """
-    for descendant in PostOrderIter(node):
-        if descendant.type == 'ACT':
-            for norm in norms:
-                if norm['type'] == 'P':
-                    if descendant.name in norm.get('actions', []):
-                        return f"P({descendant.name})"
+    for norm in norms:
+        norm_type = norm.get('type')
+        actions = norm.get('actions', [])
+        if not actions and 'action' in norm:
+            actions = [norm['action']]
 
-    if node.type in ['OR', 'AND', 'SEQ']:
-        for norm in norms:
-            if norm['type'] == 'O':
-                obligated_actions = norm.get('actions', [])
-                
-                actions_in_subtree = {
-                    descendant.name 
-                    for descendant in PostOrderIter(node) 
-                    if descendant.type == 'ACT'
-                }
-                
-                has_obligated_action = any(
-                    act in actions_in_subtree 
-                    for act in obligated_actions
-                )
-                
-                if not has_obligated_action:
-                    return f"O({', '.join(obligated_actions)})"
-    
+        if norm_type in ('P', 'F'):
+            actions_in_subtree = {
+                descendant.name
+                for descendant in PostOrderIter(node)
+                if descendant.type == 'ACT'
+            }
+            if any(a in actions_in_subtree for a in actions):
+                return f"{norm_type}({', '.join(actions)})"
+
+        if norm_type == 'O' and node.type in ['OR', 'AND', 'SEQ']:
+            actions_in_subtree = {
+                descendant.name
+                for descendant in PostOrderIter(node)
+                if descendant.type == 'ACT'
+            }
+            if any(a not in actions_in_subtree for a in actions):
+                return f"O({', '.join(actions)})"
+
     return None
 
 
@@ -389,7 +386,9 @@ def get_trace_costs(node, root_node, trace):
                     total_costs = child_costs
                     break 
     
-    return total_costs if total_costs else [0.0, 0.0, 0.0]
+    result = total_costs if total_costs else [0.0, 0.0, 0.0]
+
+    return [int(x) if isinstance(x, float) and x.is_integer() else x for x in result]
 
 
 def explain_goals(action_name, root_node):
@@ -444,3 +443,22 @@ def explain_links(action_name, root_node):
     return explanations
 
 
+all_traces = get_traces(json_tree, list(beliefs))
+
+
+valid_traces = [t for t in all_traces if not check_norm_violation(t, norm, beliefs)]
+
+best_trace = None
+best_cost_vec = None
+pref_order = preferences[1]
+
+for trace in valid_traces:
+    cost_vec = compute_total_cost_vector(trace, json_tree)
+    if best_trace is None or is_trace_better_lexicographic(cost_vec, best_cost_vec, pref_order):
+        best_trace = trace
+        best_cost_vec = cost_vec
+
+selected_trace = best_trace if best_trace else []
+
+root_node = build_tree_from_json(json_tree)
+output = explain_action(action_to_explain, root_node, selected_trace, beliefs, [norm], preferences)
