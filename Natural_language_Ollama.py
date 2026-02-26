@@ -66,12 +66,10 @@ def build_nl_payload(action_to_explain, selected_trace, formal):
 
     payload = {
         "action": human_name(action_to_explain),
-        "goal_context": None,
         "chosen": None,
-        "alternative": None,
-        "reason_type": None,
-        "reason_text": None,
-        "preference_order": None
+        "goal_contexts": [],
+        "rejections": [],
+        "preference_order": None,
     }
 
     for f in formal:
@@ -79,38 +77,30 @@ def build_nl_payload(action_to_explain, selected_trace, formal):
             payload["chosen"] = human_name(f[1])
             break
 
-    d_factors = [f for f in formal if f and f[0] == "D" and len(f) >= 2]
-    if d_factors:
-        payload["goal_context"] = human_name(d_factors[-1][1])
+    payload["goal_contexts"] = [human_name(f[1]) for f in formal if f and f[0] == "D" and len(f) >= 2]
 
-    n_factors = [f for f in formal if f and f[0] == "N"]
-    f_factors = [f for f in formal if f and f[0] == "F"]
-    v_factors = [f for f in formal if f and f[0] == "V"]
-
-    if n_factors:
-        x = n_factors[0]
-        payload["alternative"] = human_name(x[1])
-        payload["reason_type"] = "N"
-        raw = x[2] if len(x) > 2 else "rule conflict"
-        if isinstance(raw, str) and raw.startswith("P(") and raw.endswith(")"):
-            inner = raw[2:-1]
-            raw = f"it is prohibited to {human_name(inner)}"
-        elif isinstance(raw, str) and raw.startswith("O(") and raw.endswith(")"):
-            inner = raw[2:-1]
-            parts = [human_name(p.strip()) for p in inner.split(",")]
-            raw = f"at least one of the following is required: {', '.join(parts)}"
-        payload["reason_text"] = raw
-    elif f_factors:
-        x = f_factors[0]
-        payload["alternative"] = human_name(x[1])
-        payload["reason_type"] = "F"
-        missing = [human_name(p) for p in x[2]] if len(x) > 2 else []
-        payload["reason_text"] = f"the following required conditions were not available: {', '.join(missing)}"
-    elif v_factors:
-        x = v_factors[0]
-        payload["alternative"] = human_name(x[4])
-        payload["reason_type"] = "V"
-        payload["reason_text"] = {"chosen_cost": x[2], "alt_cost": x[5]}
+    for f in formal:
+        if not f:
+            continue
+        if f[0] == "N" and len(f) >= 3:
+            payload["rejections"].append({
+                "type": "N",
+                "alternative": human_name(f[1]),
+                "reason": str(f[2]),
+            })
+        elif f[0] == "F" and len(f) >= 3:
+            missing = ", ".join(human_name(x) for x in f[2]) if isinstance(f[2], list) else str(f[2])
+            payload["rejections"].append({
+                "type": "F",
+                "alternative": human_name(f[1]),
+                "reason": missing,
+            })
+        elif f[0] == "V" and len(f) >= 6:
+            payload["rejections"].append({
+                "type": "V",
+                "alternative": human_name(f[4]),
+                "reason": f"{f[2]} vs {f[5]}",
+            })
 
     for f in formal:
         if f and f[0] == "U" and len(f) >= 2:
@@ -134,12 +124,11 @@ You MUST use only the facts in this payload, do not add anything else:
 Interpretation rules:
 - "action" is the action being explained.
 - "chosen" is the branch that was selected.
-- "goal_context" is the goal this action supports.
-- "alternative" is one option that was NOT chosen.
-- "reason_type":
-  - "N" => the alternative was ruled out by a rule or prohibition. "reason_text" describes the rule.
-  - "F" => the alternative was impossible because certain conditions were MISSING. "reason_text" lists what was missing.
-  - "V" => the alternative had worse costs. "reason_text" shows the cost comparison.
+- "goal_contexts" are the goal this action supports.
+- "rejections" lists alternatives that were not chosen and why.
+  - rejection type "N": not allowed by a rule.
+  - rejection type "F": missing required conditions.
+  - rejection type "V": less preferred based on priorities.
 - "preference_order" lists priorities from most to least important.
 
 The formal explanation is represented as a list of factors with codes:
@@ -156,7 +145,7 @@ Output requirements:
 - Write EXACTLY 3 sentences. No more, no less.
 - Use first person ("I chose...", "I did not choose...").
 - Sentence 1: what action I chose and what goal it supported.
-- Sentence 2: one rejected alternative and why — for "F" say the conditions were MISSING (not present), for "N" say it was not allowed, for "V" say it was less preferred.
+- Sentence 2: “Mention the rejected alternatives from "rejections" in one concise sentence; for "F" say the conditions were missing (not present), for "N" say it was not allowed, for "V" say it was less preferred.
 - Sentence 3: state my preference order EXACTLY as given in "preference_order" from most to least important, then say only that this order guided my choice. Do not infer or add any reasoning beyond what is stated.
 - Do NOT start with any preamble like "Here is the explanation" or "Here is a faithful explanation".
 - Do NOT add opinions, flavor text, or facts not in the payload.
@@ -193,4 +182,5 @@ if __name__ == "__main__":
         print(f"Selected trace: {selected_trace}")
         print(f"Formal output: {formal}")
         print(f"Natural language: {nl}")
+
 
