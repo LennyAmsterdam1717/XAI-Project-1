@@ -86,9 +86,8 @@ def check_norm_violation(trace, norm, beliefs):
             condition_met = all(c in trace_set for c in condition)
             if not condition_met:
                 return False
-        for action in actions:
-            if action not in trace_set:
-                return True  # Missing obligated action = violation
+        if not any(action in trace_set for action in actions):
+            return True
         return False
 
     if norm_type in ("F", "P", "prohibition"):

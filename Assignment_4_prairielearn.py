@@ -110,9 +110,8 @@ def check_norm_violation(trace, norm, beliefs):
             condition_met = all(c in trace_set for c in condition)
             if not condition_met:
                 return False
-        for action in actions:
-            if action not in trace_set:
-                return True  # Missing obligated action = violation
+        if not any(action in trace_set for action in actions):
+            return True
         return False
 
     if norm_type in ("F", "prohibition", "P"):
@@ -337,13 +336,13 @@ def check_norm_violation_in_subtree(node, norms, trace):
             if any(a in actions_in_subtree for a in actions):
                 return f"{norm_type}({', '.join(actions)})"
 
-        if norm_type == 'O' and node.type in ['OR', 'AND', 'SEQ']:
+        if norm_type == 'O':
+            if node.type == 'ACT':
+                continue
             actions_in_subtree = {
-                descendant.name
-                for descendant in PostOrderIter(node)
-                if descendant.type == 'ACT'
+                d.name for d in PostOrderIter(node) if d.type == 'ACT'
             }
-            if any(a not in actions_in_subtree for a in actions):
+            if actions and not any(a in actions_in_subtree for a in actions):
                 return f"O({', '.join(actions)})"
 
     return None
