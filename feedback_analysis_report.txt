@@ -1,0 +1,20 @@
+======================================================================
+PEER FEEDBACK ANALYSIS REPORT
+======================================================================
+
+Total Responses: 50
+Number of Scenarios: 5
+
+Mean Scores (out of 5.00):
+  Clarity             : 3.86
+  Understandability   : 4.10
+  Appropriateness     : 3.86
+  BestInterest        : 3.84
+  Satisfaction        : 3.70
+
+Overall Mean Score: 3.87/5.00
+
+Strongest: Understandability (4.10)
+Weakest: Satisfaction (3.70)
+
+======================================================================
